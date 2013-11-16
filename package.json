@@ -1,0 +1,29 @@
+{
+  "name": "Email",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "NODE_PATH=lib up -r coffee-script -p 2999 app.coffee",
+    "test": "NODE_PATH=lib mocha --compilers coffee:coffee-script -R spec",
+    "clean": "NODE_PATH=lib coffee clean.coffee"
+  },
+  "dependencies": {
+    "express": "3.0.6",
+    "hbs": "*",
+    "handlebars": "*",
+    "handlebars-paginate": "*",
+    "less-middleware": "*",
+    "assert": "*",
+    "coffee-script": "*",
+    "rethinkdb": "*",
+    "moment": "*",
+    "twix": "*",
+    "ghm": "*",
+    "mocha": "*",
+    "async": "*",
+    "config": "*",
+    "i18n": "*",
+    "socket.io": "*",
+  }
+}
+

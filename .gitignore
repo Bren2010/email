@@ -1,0 +1,6 @@
+*~
+npm-debug.log
+node_modules/
+rethinkdb_data/
+config/*
+!config/default.coffee
