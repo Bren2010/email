@@ -8,10 +8,6 @@ module.exports.model = require './user'
 db = require 'db'
 db.events.on 'start', -> module.exports.model.db db
 
-async = require 'async'
-config = require 'config'
-moment = require 'moment'
-
 login = (session, user) ->
     session.uid = user.id
     session.authed = true
@@ -73,6 +69,28 @@ app.post '/user/register', (req, res) ->
         entry.setPassword req.param('pass'), -> # Hashes it.
             # Save the user to the db or return errors.
             entry.save (out, err) -> fn err, entry
+
+app.get '/user/settings', (req, res) ->
+    if not req.session.authed then return res.redirect '/'
+    res.locals.pageTitle = 'Settings'
+    res.render 'settings'
+
+app.post '/user/settings', (req, res) ->
+    # Aliasing and login check.
+    [session, view, user] = [req.session, res.locals, res.locals.user]
+    if not session.authed then return res.redirect '/'
+    view.pageTitle = 'Settings'
+    
+    # Handle password.
+    user.setPassword req.param('pass'), ->
+        # Save and reload to get the latest user object.
+        user.save (out, err) ->
+            view.err = err
+            
+            user = module.exports.model.create session.uid, null
+            user.load (ok) ->
+                view.ok = ok
+                res.render 'settings'
 
 app.get '/user/logout', (req, res) ->
     delete req.session.uid

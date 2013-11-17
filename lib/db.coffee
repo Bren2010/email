@@ -6,7 +6,7 @@ redis = require 'redis'
 
 exports.events = new EventEmitter()
 exports.start = ->
-    rdb = (done) ->
+    rdb = (done) -> # Creates the RethinkDB connection.
         r.connect config.database, (err, conn) ->
             if err? then console.log err
             
@@ -15,7 +15,7 @@ exports.start = ->
             
             done()
     
-    cache = (done) ->
+    cache = (done) -> # Creates the Redis connection.
         conf = config.cache
         
         if not conf.caching then return done()

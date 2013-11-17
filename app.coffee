@@ -13,6 +13,7 @@ db = require 'db'
 pages = {}
 pages.home       = require 'home'
 pages.user       = require 'user'
+pages.inbox      = require 'inbox'
 
 app = express()
 
@@ -58,25 +59,7 @@ i18n.configure {
 }
 
 {getUser} = require 'global'
-app.all '*', getUser, (req, res, next) ->
-    view = res.locals
-    
-    if req.param('disp') is 'json' then res.render = ->
-        [obj, keys] = [{}, Object.keys(view)]
-        add = (src, dst, keys) ->
-            for i in keys when i[0] isnt '_'
-                if src[i] instanceof Object
-                    dst[i] = if src[i] instanceof Array then [] else {}
-                    add src[i], dst[i], Object.keys src[i]
-                else dst[i] = src[i]
-        
-        add view, obj, keys
-        obj._csrf = view._csrf
-        res.json obj
-    
-    view._csrf = req.csrfToken()
-    
-    next()
+app.all '*', getUser
 
 db.events.once 'start', ->
     server = app.listen config.port, ->

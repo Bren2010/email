@@ -1,4 +1,4 @@
-<form action="/user/login" method="post" class="form-signin">
+<form action="/user/login" method="post" onsubmit="return window.encrypt(this)" class="form-signin">
     <h2 class="form-signin-heading">Please Login</h2>
 
 {{#if err.login}}<div class="alert alert-danger"><strong>Error!</strong>  Invalid login.</div>{{/if}}
