@@ -1,0 +1,16 @@
+<form action="/user/register" method="post" class="form-signin">
+    <h2 class="form-signin-heading">Please Register</h2>
+
+{{#if err.username}}<div class="alert alert-danger"><strong>Error!</strong>  Invalid username.</div>{{/if}}
+{{#if err.password}}<div class="alert alert-danger"><strong>Error!</strong>  Invaid password.</div>{{/if}}
+{{#if err.taken}}<div class="alert alert-danger"><strong>Error!</strong>  Username taken.</div>{{/if}}
+
+    <input type="text" class="form-control" name="user" placeholder="Username" value="{{username}}" required autofocus>
+    <input type="password" class="form-control" name="pass" placeholder="Password" required>
+    
+    <input type="hidden" name="_csrf" value="{{_csrf}}" />
+    <button class="btn btn-lg btn-primary btn-block" type="submit">Register</button><br />
+    
+    <div class="alert alert-info"><a href="/user/login">No, I want to login!</a></div>
+</form>
+

@@ -1,5 +1,7 @@
 fs = require 'fs'
 
+module.exports.domain = 'email.com'
+module.exports.port = 3000
 module.exports.sessionSecret = 'your secret here'
 
 module.exports.database = # RethinkDB
@@ -7,10 +9,8 @@ module.exports.database = # RethinkDB
     port: 28015
     db: 'email'
 
-module.exports.https =
-    key: fs.readFileSync './test.key', 'utf8'
-    cert: fs.readFileSync './test.crt', 'utf8'
-    # ca: fs.readFileSync './ca.crt', 'utf8'
-    # crl: fs.readFileSync './crl.pem', 'utf8'
-    requestCert: false
-    rejectUnauthorized: false
+module.exports.cache =
+    caching: false
+    host: '127.0.0.1'
+    port: 6379
+    opts: null

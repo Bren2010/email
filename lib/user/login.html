@@ -1,0 +1,14 @@
+<form action="/user/login" method="post" class="form-signin">
+    <h2 class="form-signin-heading">Please Login</h2>
+
+{{#if err.login}}<div class="alert alert-danger"><strong>Error!</strong>  Invalid login.</div>{{/if}}
+
+    <input type="text" class="form-control" name="user" placeholder="Username" value="{{username}}" required autofocus>
+    <input type="password" class="form-control" name="pass" placeholder="Password" required>
+    
+    <input type="hidden" name="_csrf" value="{{_csrf}}" />
+    <button class="btn btn-lg btn-primary btn-block" type="submit">Login</button><br />
+    
+    <div class="alert alert-info"><a href="/user/register">No, I want to register!</a></div>
+</form>
+
