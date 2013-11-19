@@ -17,6 +17,8 @@ class User extends BaseModel
     constructor: (@id, entry) ->
         @username = entry?.username ? "Guest"
         @password = entry?.password ? null
+        @pubKey   = entry?.pubKey ? null
+        @privKey  = entry?.privKey ? null
     
     # Authenticates a user's account.
     #
@@ -30,6 +32,8 @@ class User extends BaseModel
     validate: ->
         check(@username, 'username').notEmpty().not('Guest').len(4, 16)
         check(@password, 'password').notEmpty()
+        check(@pubKey, 'key').notEmpty()
+        check(@privKey, 'key').notEmpty()
     
     goodPassword: (password) ->
         if password.length is 0 then return false # No empty passwords.

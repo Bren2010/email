@@ -1,12 +1,16 @@
-<form action="/user/register" method="post" onsubmit="return window.encrypt(this)" class="form-signin">
+<form action="/user/register" method="post" onsubmit="return window.register(this)" class="form-signin">
     <h2 class="form-signin-heading">Please Register</h2>
 
 {{#if err.username}}<div class="alert alert-danger"><strong>Error!</strong>  Invalid username.</div>{{/if}}
 {{#if err.password}}<div class="alert alert-danger"><strong>Error!</strong>  Invaid password.</div>{{/if}}
 {{#if err.taken}}<div class="alert alert-danger"><strong>Error!</strong>  Username taken.</div>{{/if}}
+{{#if err.key}}<div class="alert alert-danger"><strong>Error!</strong>  There was an issue with key generation.  Try again?</div>{{/if}}
 
     <input type="text" class="form-control" name="user" placeholder="Username" value="{{username}}" required autofocus>
     <input type="password" class="form-control" name="pass" placeholder="Password" required>
+    
+    <input type="hidden" name="pubKey" value="" />
+    <input type="hidden" name="privKey" value="" />
     
     <input type="hidden" name="_csrf" value="{{_csrf}}" />
     <button class="btn btn-lg btn-primary btn-block" type="submit">Register</button><br />

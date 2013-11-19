@@ -13,6 +13,10 @@ login = (session, user) ->
     session.authed = true
     session.time = Date.now()
 
+app.get '/pubKey/:user', (req, res) ->
+    module.exports.model.getByUsername req.param('user'), (user) ->
+        if user? then return res.send user.pubKey else res.send 'bad'
+
 app.get '/user/login', (req, res) ->
     res.locals.pageTitle = 'Login'
     res.render 'login'
@@ -43,7 +47,12 @@ app.post '/user/register', (req, res) ->
     res.locals.pageTitle = 'Register'
     
     # Basic user entry.
-    entry = username: req.param 'user'
+    entry =
+        username: req.param 'user'
+        pubKey: req.param 'pubKey'
+        privKey: req.param 'privKey'
+    
+    console.log entry
     
     # Called to route the user once all of the work is done.
     fn = (err, user) ->

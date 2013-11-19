@@ -65,8 +65,8 @@ db.events.once 'start', ->
     server = app.listen config.port, ->
         console.log 'Server listening on port ' + config.port
     
-    # websocket = io.listen server
-    # websocket.sockets.on 'connection', pages.chat.handler !!!!!
+    websocket = io.listen server
+    websocket.sockets.on 'connection', pages.inbox.handler
     
     true
 

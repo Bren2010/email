@@ -13,6 +13,15 @@
     <!-- Custom styles for this template -->
     <link href="/css/inbox.css" rel="stylesheet">
 
+    <script type="text/javascript">
+        window.privKey = '{{{user.privKey}}}';
+        window.tag = '{{{tag}}}';
+    </script>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript" src="/js/sjcl.js"></script>
+    <script type="text/javascript" src="/js/encrypt.js"></script>
+    
     <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
     <!--[if lt IE 9]>
       <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
@@ -36,7 +45,7 @@
         <div class="navbar-collapse collapse">
           <ul class="nav navbar-nav">
             <li class="active"><a href="#">Home</a></li>
-            <li><a href="#">Compose</a></li>
+            <li><a href="#" data-toggle="modal" data-target="#compose">Compose</a></li>
             <li>
               <form class="navbar-form">
                 <div class="form-group">
@@ -54,8 +63,38 @@
     </div>
 
     <div class="container">
-        Butts
+        <center><img src="/loading.gif" style="padding-top: 5%" /></center>
     </div> <!-- /container -->
+
+    <!-- Composition Modal -->
+    <div class="modal fade" id="compose" tabindex="-1" role="dialog" aria-labelledby="composeLabel" aria-hidden="true">
+      <form class="form-horizontal" action="/inbox/send" method="post" onsubmit="return window.compose(this)">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title">Compose</h4>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+                <input class="form-control" type="text" name="to" placeholder="To" required>
+            </div>
+            <div class="form-group">
+                <input class="form-control" type="text" name="subject" placeholder="Subject" required>
+            </div>
+            <div class="form-group">
+                <textarea class="form-control" rows="10" name="body" placeholder="Body" required></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <input type="hidden" name="_csrf" value="{{_csrf}}" />
+            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-primary">Send</button>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+      </form>
+    </div><!-- /.modal -->
     
     <!-- Bootstrap core JavaScript
     ================================================== -->
