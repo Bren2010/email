@@ -19,6 +19,7 @@ class User extends BaseModel
         @password = entry?.password ? null
         @pubKey   = entry?.pubKey ? null
         @privKey  = entry?.privKey ? null
+        @search   = entry?.search ? {}
     
     # Authenticates a user's account.
     #

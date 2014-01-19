@@ -1,10 +1,12 @@
-<form action="/user/settings" method="post" onsubmit="return window.encrypt(this)" class="form-signin">
+<form action="/user/settings" method="post" onsubmit="return window.changePassword(this)" class="form-signin">
     <h2 class="form-signin-heading">Change Password</h2>
 
 {{#if ok}}<div class="alert alert-success"><strong>Saved!</strong>  Your account has been updated.</div>{{/if}}
-{{#if err.password}}<div class="alert alert-danger"><strong>Error!</strong>  Invaid password.</div>{{/if}}
+{{#if err.key}}<div class="alert alert-danger"><strong>Error!</strong>  There was an issue with your key.</div>{{/if}}
+{{#if err.password}}<div class="alert alert-danger"><strong>Error!</strong>  Invalid password.</div>{{/if}}
 
     <input type="password" class="form-control" name="pass" placeholder="Password" required autofocus>
+    <input type="hidden" name="privKey" value='{{{user.privKey}}}' />
     
     <input type="hidden" name="_csrf" value="{{_csrf}}" />
     <button class="btn btn-lg btn-primary btn-block" type="submit">Change</button><br />

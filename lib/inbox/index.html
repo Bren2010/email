@@ -14,12 +14,15 @@
     <link href="/css/inbox.css" rel="stylesheet">
 
     <script type="text/javascript">
+        window.pubKey = '{{{user.pubKey}}}';
         window.privKey = '{{{user.privKey}}}';
         window.tag = '{{{tag}}}';
+        window.from = '{{user.username}}@{{domain}}';
     </script>
     
     <script src="/socket.io/socket.io.js"></script>
     <script type="text/javascript" src="/js/sjcl.js"></script>
+    <script type="text/javascript" src="/js/searchable.js"></script>
     <script type="text/javascript" src="/js/encrypt.js"></script>
     
     <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
@@ -63,7 +66,21 @@
     </div>
 
     <div class="container">
-        <center><img src="/loading.gif" style="padding-top: 5%" /></center>
+        <center><img id="loading" src="/loading.gif" style="padding-top: 5%" /></center>
+        
+        <div id="error" class="alert alert-warning" style="display: none"><strong>Woops!</strong>  You don't have any mail.</div>
+        <table id="emails" class="table table-striped table-hover" style="display: none">
+            <thead>
+                <tr>
+                    <th width="20%">From</th>
+                    <th>Subject</th>
+                    <th width="15%">Arrived</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr></tr><tr></tr>
+            </tbody>
+        </table>
     </div> <!-- /container -->
 
     <!-- Composition Modal -->
@@ -76,8 +93,9 @@
             <h4 class="modal-title">Compose</h4>
           </div>
           <div class="modal-body">
-            <div class="form-group">
-                <input class="form-control" type="text" name="to" placeholder="To" required>
+            <div class="form-group input-group">
+                <input class="form-control" type="text" name="to" placeholder="To" onblur="return window.getPubKey(this)" required>
+                <span class="input-group-addon"><span id="to-status-icon" class="glyphicon glyphicon-question-sign"></span></span>
             </div>
             <div class="form-group">
                 <input class="form-control" type="text" name="subject" placeholder="Subject" required>
@@ -87,6 +105,9 @@
             </div>
           </div>
           <div class="modal-footer">
+            <input type="hidden" name="from" value="" />
+            <input type="hidden" name="signature" value="" />
+            <input type="hidden" name="pubKey" value="" />
             <input type="hidden" name="_csrf" value="{{_csrf}}" />
             <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
             <button type="submit" class="btn btn-primary">Send</button>
@@ -95,6 +116,26 @@
       </div><!-- /.modal-dialog -->
       </form>
     </div><!-- /.modal -->
+    
+    <!-- View Modal -->
+    <div class="modal fade" id="view" tabindex="-1" role="dialog" aria-labelledby="composeLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h4 class="modal-title" id="view-subj">Modal title</h4>
+          </div>
+          <div class="modal-body" id="view-body">
+            <p>One fine body&hellip;</p>
+          </div>
+          <div class="modal-footer">
+            <i id="view-footer"></i>&nbsp;
+            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
     
     <!-- Bootstrap core JavaScript
     ================================================== -->

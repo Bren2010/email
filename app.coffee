@@ -29,7 +29,6 @@ app.configure () ->
     app.use express.methodOverride()
     app.use express.cookieParser config.sessionSecret
     app.use express.cookieSession()
-    app.use express.csrf()
     app.use i18n.init
     app.use app.router
     app.use require('less-middleware')({ src: __dirname + '/public' })
@@ -59,7 +58,8 @@ i18n.configure {
 }
 
 {getUser} = require 'global'
-app.all '*', getUser
+csrf = express.csrf()
+app.all /^(?!\/inbox\/send(.){2,})(.*)$/, csrf, getUser
 
 db.events.once 'start', ->
     server = app.listen config.port, ->

@@ -90,7 +90,8 @@ app.post '/user/settings', (req, res) ->
     if not session.authed then return res.redirect '/'
     view.pageTitle = 'Settings'
     
-    # Handle password.
+    # Handle password and private key.
+    user.privKey = req.param 'privKey'
     user.setPassword req.param('pass'), ->
         # Save and reload to get the latest user object.
         user.save (out, err) ->

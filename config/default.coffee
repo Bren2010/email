@@ -1,6 +1,6 @@
 fs = require 'fs'
 
-module.exports.domain = 'email.com'
+module.exports.domain = 'localhost:3000'
 module.exports.port = 3000
 module.exports.sessionSecret = 'your secret here'
 
