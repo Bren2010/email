@@ -18,9 +18,11 @@
         window.privKey = '{{{user.privKey}}}';
         window.tag = '{{{tag}}}';
         window.from = '{{user.username}}@{{domain}}';
+        window.cache = {};
     </script>
     
     <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/moment.min.js"></script>
     <script type="text/javascript" src="/js/sjcl.js"></script>
     <script type="text/javascript" src="/js/searchable.js"></script>
     <script type="text/javascript" src="/js/encrypt.js"></script>

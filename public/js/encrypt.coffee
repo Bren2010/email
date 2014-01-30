@@ -1,22 +1,98 @@
-decryptEmail = (privKey, email) ->
-    try
-        email.from = sjcl.decrypt privKey, email.from
-        email.subject = sjcl.decrypt privKey, email.subject
-        email.body = sjcl.decrypt privKey, email.body
-        email.pubKey = JSON.parse sjcl.decrypt privKey, email.pubKey
-    catch e then return [{}, 'Bad']
+class BaseModel # Stolen from the backend.  Docs stripped.
+    humanize: (keys) ->
+        swap = (key) => this['_' + key] = this[key]
+        swap key for key in keys
     
-    pubKey = sjcl.ecc.deserialize email.pubKey.ecdsa
-    corpus = subject: email.subject, body: email.body
-    corpus = sjcl.hash.sha256.hash JSON.stringify corpus
-    
-    try
-        ok = pubKey.verify corpus, sjcl.codec.base64.toBits email.signature
-        return [email, null]
-    catch e
-        email.subject += '  (Modified Contents!)'
-        return [email, 'Bad']
+    dehumanize: (keys) ->
+        swap = (key) =>
+            if not this['_' + key]? then return
+            
+            delete this[key]
+            this[key] = this['_' + key]
+            delete this['_' + key]
+        
+        swap key for key in keys
 
+# Email wrapper.  Enables lazy cryptography.
+class Email extends BaseModel
+    constructor: (@id, email, @_key) -> # @_key -> An ElGamal key.  Pub or priv.
+        @user = email?.user ? null
+        @date = email?.date ? null
+        @from = email?.from ? null
+        @subject = email?.subject ? null
+        @body = email?.body ? null
+        @signature = email?.signature ? null
+        @pubKey = email?.pubKey ? null
+        @read = email?.read ? false
+    
+    sign: (signingKey) -> # Must be humanized.
+        corpus = subject: @_subject, body: @_body
+        corpus = sjcl.hash.sha256.hash JSON.stringify corpus
+        @signature = signingKey.sign corpus, 10
+        @signature = sjcl.codec.base64.fromBits @signature
+    
+    verify: -> # Must be humanized.
+        corpus = subject: @_subject, body: @_body
+        corpus = sjcl.hash.sha256.hash JSON.stringify corpus
+        ok = @pubKey.ecdsa.verify corpus, sjcl.codec.base64.toBits @signature
+        
+        ok
+    
+    humanize: ->
+        super ['from', 'subject', 'body', 'pubKey']
+        @_decrypted =
+            from: null
+            subject: null
+            body: null
+            pubKey: null
+        
+        @__defineGetter__ 'from', ->
+            if not @_decrypted.from?
+                @_decrypted.from = sjcl.decrypt @_key, @_from
+            
+            @_decrypted.from
+        
+        @__defineSetter__ 'from', (from) ->
+            @_decrypted.from = from
+            @_from = sjcl.encrypt @_key, from
+        
+        @__defineGetter__ 'subject', ->
+            if not @_decrypted.subject?
+                @_decrypted.subject = sjcl.decrypt @_key, @_subject
+            
+            @_decrypted.subject 
+        
+        @__defineSetter__ 'subject', (subject) ->
+            @_decrypted.subject = subject
+            @_subject = sjcl.encrypt @_key, subject
+        
+        @__defineGetter__ 'body', ->
+            if not @_decrypted.body?
+                @_decrypted.body = sjcl.decrypt @_key, @_body
+            
+            @_decrypted.body
+        
+        @__defineSetter__ 'body', (body) ->
+            @_decrypted.body = body
+            @_body = sjcl.encrypt @_key, body
+        
+        @__defineGetter__ 'pubKey', ->
+            if not @_decrypted.pubKey?
+                pub = JSON.parse sjcl.decrypt @_key, @_pubKey
+                pub.elGamal = sjcl.ecc.deserialize pub.elGamal
+                pub.ecdsa = sjcl.ecc.deserialize pub.ecdsa
+                
+                @_decrypted.pubKey = pub
+            
+            @_decrypted.pubKey
+        
+        @__defineSetter__ 'pubKey', (pubKey) ->
+            pubKey = JSON.stringify pubKey if not typeof pubKey is 'string'
+            @_decrypted.pubKey = pubKey
+            @_pubKey = sjcl.encrypt @_key, pubKey
+        
+    
+    dehumanize: -> super ['from', 'subject', 'body', 'pubKey']
 
 ### Functions to secure forms. ###
 window.signin = (form) ->
@@ -70,29 +146,34 @@ window.compose = (form) ->
         pub = JSON.parse window.toPubKey
         curve = sjcl.ecc.curves.c256
         
-        pub.elGamal = sjcl.ecc.deserialize pub.elGamal
-        
+        encryptionKey = sjcl.ecc.deserialize pub.elGamal
         # pubKey.ecdsa = ... Not needed for this.
         
-        # Encrypt form fields.
-        corpus = subject: form.subject.value, body: form.body.value
-        corpus = sjcl.hash.sha256.hash JSON.stringify corpus
-        corpus = window.privKey.ecdsa.sign corpus, 10
-        corpus = sjcl.codec.base64.fromBits corpus
+        email = new Email null, null, encryptionKey
+        email.humanize()
         
-        form.from.value = sjcl.encrypt pub.elGamal, window.from
-        form.subject.value = sjcl.encrypt pub.elGamal, form.subject.value
-        form.body.value = sjcl.encrypt pub.elGamal, form.body.value
-        form.signature.value = corpus
-        form.pubKey.value = sjcl.encrypt pub.elGamal, window.pubKey
+        email.from = window.from
+        email.subject = form.subject.value
+        email.body = form.body.value
+        email.pubKey = window.pubKey
+        email.sign window.privKey.ecdsa
+        
+        email.dehumanize()
+        
+        form.from.value = email.from
+        form.subject.value = email.subject
+        form.body.value = email.body
+        form.signature.value = email.signature
+        form.pubKey.value = email.pubKey
         
         true
     catch e
         alert e
         false
 
-window.view = (email) ->
-    email = JSON.parse unescape email
+window.view = (id) ->
+    email = window.cache[id]
+    
     footer = 'From ' + email.from + ' on ' + email.date
     
     $('#view-subj').text email.subject
@@ -158,21 +239,25 @@ window.socket.on 'page', (emails) ->
     loadEmail = (i) ->
         if not emails[i]? then return $('#loading').hide 'fast'
         
-        email = emails[i]
-        [email, err] = decryptEmail window.privKey.elGamal, email
-        if err? then c = 'warning'
+        email = new Email emails[i].id, emails[i], window.privKey.elGamal
+        email.humanize()
+        window.cache[email.id] = email
+        
+        try email.verify()
+        catch err then err = true
         
         c = if err? then 'danger' else if not email.read then 'warning' else ''
-        cb = 'window.view(\'' + escape(JSON.stringify(email)) + '\')'
+        cb = 'window.view(\'' + email.id + '\')'
         tr = '<tr id="' + email.id + '" onclick="' + cb + '" '
         tr = tr + 'style="display: none" class="' + c + '">'
-        tr = tr + '<td id="from-' + email.id + '">' + email.from + '</td>'
+        tr = tr + '<td id="from-' + email.id + '"></td>'
         tr = tr + '<td id="subj-' + email.id + '"></td>'
-        tr = tr + '<td>' + email.date + '</td></tr>'
+        tr = tr + '<td id="date-' + email.id + '"></td></tr>'
         
         $('#emails tr:last').after tr
         $('#from-' + email.id).text email.from
         $('#subj-' + email.id).text email.subject
+        $('#date-' + email.id).text email.date
         
         $('#' + email.id).show 1000, -> loadEmail i + 1
     
@@ -185,8 +270,10 @@ window.socket.on 'index', (newId, reps, emails) ->
     # Calculate index.
     for email in emails
         index = {}
-        [email, err] = decryptEmail window.privKey.elGamal, email
-        if err? then continue
+        email = new Email email.id, email, window.privKey.elGamal
+        
+        try email.verify()
+        catch err then continue
         
         corpus = email.from + ' ' + email.subject + ' ' + email.body
         if corpus.length > max then max = corpus.length
