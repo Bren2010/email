@@ -81,18 +81,62 @@ class Email extends BaseModel
                 pub = JSON.parse sjcl.decrypt @_key, @_pubKey
                 pub.elGamal = sjcl.ecc.deserialize pub.elGamal
                 pub.ecdsa = sjcl.ecc.deserialize pub.ecdsa
-                
                 @_decrypted.pubKey = pub
             
             @_decrypted.pubKey
         
         @__defineSetter__ 'pubKey', (pubKey) ->
-            pubKey = JSON.stringify pubKey if not typeof pubKey is 'string'
             @_decrypted.pubKey = pubKey
+            
+            pubKey.elGamal = pubKey.elGamal.serialize()
+            pubKey.ecdsa = pubKey.ecdsa.serialize()
+            pubKey = JSON.stringify pubKey
+            
             @_pubKey = sjcl.encrypt @_key, pubKey
         
     
     dehumanize: -> super ['from', 'subject', 'body', 'pubKey']
+
+flashError = ->
+    $('#error').show 'slow', ->
+        hide = -> $('#error').hide 'slow'
+        setTimeout hide, 3000
+
+toggleLoading = -> $('#loading').toggle 'slow'
+
+mergeEmails = (emails) ->
+    [max, indexes] = [0, []]
+    
+    # Calculate index.
+    for email in emails
+        index = {}
+        email = new Email email.id, email, window.privKey.elGamal
+        email.humanize()
+        
+        try email.verify()
+        catch err then continue
+        
+        corpus = email.from + ' ' + email.subject + ' ' + email.body
+        if corpus.length > max then max = corpus.length
+        
+        tokens = sjcl.searchable.tokenize corpus
+        index[token] = email.id for token in tokens
+        
+        indexes.push index
+    
+    out = sjcl.searchable.secureIndex window.searchKeys, max, indexes...
+    
+    # Re-encrypt keystore.
+    key =
+        search: window.searchKeys
+        data: window.dataKey
+        email:
+            elGamal: window.privKey.elGamal.serialize()
+            ecdsa: window.privKey.ecdsa.serialize()
+    
+    key = sjcl.encrypt window.localStorage.pass, JSON.stringify key
+    alert out.index.docs
+    [out, key]
 
 ### Functions to secure forms. ###
 window.signin = (form) ->
@@ -120,6 +164,7 @@ window.register = (form) ->
     # Serialize the private keys.
     privKey = elGamal: elGamal.sec.serialize(), ecdsa: ecdsa.sec.serialize()
     privKey = email: privKey, search: {}
+    privKey.data = sjcl.codec.base64.fromBits sjcl.random.randomWords 8, 10
     form.privKey.value = sjcl.encrypt pass, JSON.stringify privKey
     
     true
@@ -148,6 +193,11 @@ window.compose = (form) ->
         
         encryptionKey = sjcl.ecc.deserialize pub.elGamal
         # pubKey.ecdsa = ... Not needed for this.
+        
+        # Decode our public key.
+        window.pubKey = JSON.parse window.pubKey
+        window.pubKey.elGamal = sjcl.ecc.deserialize window.pubKey.elGamal
+        window.pubKey.ecdsa = sjcl.ecc.deserialize window.pubKey.ecdsa
         
         email = new Email null, null, encryptionKey
         email.humanize()
@@ -182,28 +232,9 @@ window.view = (id) ->
     
     $('#view').modal()
     
-    if not email.read # Set as read and index.
+    if not email.read
         document.getElementById(email.id).className = ''
-        
-        corpus = email.from + ' ' + email.subject + ' ' + email.body
-        max = corpus.length
-        tokens = sjcl.searchable.tokenize corpus
-        o = sjcl.searchable.secureIndex window.searchKeys, max, tokens
-        
-        # Fix index.
-        o.index.docs = [email.id]
-        o.index.index[k] = email.id for k, v of o.index.index when v is o.newId
-        
-        # Re-encrypt keystore.
-        key =
-            search: window.searchKeys
-            email:
-                elGamal: window.privKey.elGamal.serialize()
-                ecdsa: window.privKey.ecdsa.serialize()
-        
-        key = sjcl.encrypt window.localStorage.pass, JSON.stringify key
-        window.socket.emit 'index', email.id, o.newDomain, [], o.index, key
-
+        window.socket.emit 'read', email.id
 
 ### Manage server interactions ###
 window.getPubKey = (input) ->
@@ -221,10 +252,62 @@ window.getPubKey = (input) ->
             window.toPubKey = pubKey
         else statusIcon.className = 'glyphicon glyphicon-remove'
 
+window.fetch = ->
+    toggleLoading()
+    
+    window.socket.emit 'fetch'
+    window.socket.on 'fetch', (emails) ->
+        if emails.length is 0
+            toggleLoading()
+            flashError()
+            return
+        
+        newIds = []
+        newIds.push email.id for email in emails
+        
+        [out, key] = mergeEmails emails
+        window.socket.emit 'index', newIds, out.newDomain, [], out.index, key
+        window.socket.once 'done', ->
+            # Re-encrypt all of the emails.
+            out = []
+            for email in emails
+                email = new Email email.id, email, window.privKey.elGamal
+                email.humanize()
+                
+                try email.verify()
+                catch err then continue
+                
+                email2 = new Email email.id, null, window.dataKey
+                email2.humanize()
+                
+                email2.from = email.from
+                email2.subject = email.subject
+                email2.body = email.body
+                email2.pubKey = email.pubKey
+                
+                email2.dehumanize()
+                
+                email3 =
+                    id: email.id
+                    date: email.date
+                    from: email2.from
+                    subject: email2.subject
+                    body: email2.body
+                    pubKey: email2.pubKey
+                
+                out.push email3
+            
+            # Submit, wait for the confirmation, and refresh the page.
+            window.socket.emit 'process', out
+            window.socket.once 'process', -> window.location = '/inbox'
+    
+    false
+
 if window.privKey? # This is an inbox page.
     # Load private key into memory.
     privKey = JSON.parse sjcl.decrypt window.localStorage.pass, window.privKey
     window.searchKeys = privKey.search
+    window.dataKey = privKey.data
     privKey = privKey.email
     
     privKey.elGamal = sjcl.ecc.deserialize privKey.elGamal
@@ -237,16 +320,13 @@ if window.privKey? # This is an inbox page.
 
 window.socket.on 'page', (emails) ->
     loadEmail = (i) ->
-        if not emails[i]? then return $('#loading').hide 'fast'
+        if not emails[i]? then return
         
-        email = new Email emails[i].id, emails[i], window.privKey.elGamal
+        email = new Email emails[i].id, emails[i], window.dataKey
         email.humanize()
         window.cache[email.id] = email
         
-        try email.verify()
-        catch err then err = true
-        
-        c = if err? then 'danger' else if not email.read then 'warning' else ''
+        c = if not email.read then 'warning' else ''
         cb = 'window.view(\'' + email.id + '\')'
         tr = '<tr id="' + email.id + '" onclick="' + cb + '" '
         tr = tr + 'style="display: none" class="' + c + '">'
@@ -255,43 +335,18 @@ window.socket.on 'page', (emails) ->
         tr = tr + '<td id="date-' + email.id + '"></td></tr>'
         
         $('#emails tr:last').after tr
-        $('#from-' + email.id).text email.from
-        $('#subj-' + email.id).text email.subject
-        $('#date-' + email.id).text email.date
         
-        $('#' + email.id).show 1000, -> loadEmail i + 1
+        try
+            $('#from-' + email.id).text email.from
+            $('#subj-' + email.id).text email.subject
+            $('#date-' + email.id).text email.date
+        catch err then alert 'Modified contents.'
+        
+        $('#' + email.id).show 'fast', -> loadEmail i + 1
     
     if emails.length isnt 0 then $('#emails').show 'fast', -> loadEmail 0
-    else $('#error').show 'fast', -> $('#loading').hide 'fast'
+    else flashError()
 
-window.socket.on 'index', (newId, reps, emails) ->
-    [max, indexes] = [0, []]
-    
-    # Calculate index.
-    for email in emails
-        index = {}
-        email = new Email email.id, email, window.privKey.elGamal
-        
-        try email.verify()
-        catch err then continue
-        
-        corpus = email.from + ' ' + email.subject + ' ' + email.body
-        if corpus.length > max then max = corpus.length
-        
-        tokens = sjcl.searchable.tokenize corpus
-        index[token] = email.id for token in tokens
-        
-        indexes.push index
-    
-    out = sjcl.searchable.secureIndex window.searchKeys, max, indexes...
-    
-    # Re-encrypt keystore.
-    key =
-        search: window.searchKeys
-        email:
-            elGamal: window.privKey.elGamal.serialize()
-            ecdsa: window.privKey.ecdsa.serialize()
-    
-    key = sjcl.encrypt window.localStorage.pass, JSON.stringify key
-    window.socket.emit 'index', newId, out.newDomain, reps, out.index, key
-
+window.socket.on 'index', (newIds, reps, emails) ->
+    [out, key] = mergeEmails emails
+    window.socket.emit 'index', newIds, out.newDomain, reps, out.index, key

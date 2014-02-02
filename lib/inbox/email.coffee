@@ -27,6 +27,7 @@ class Email extends BaseModel
         @signature = email?.signature ? null
         @pubKey = email?.pubKey ? null
         @read = email?.read ? false
+        @processed = email?.processed ? false
         
         @_immutable = []
     
@@ -49,6 +50,7 @@ class Email extends BaseModel
     getUser: (done) -> super user, done
     dehumanize: -> super ['date']
     load: (fn) -> super 'email', fn, module
+    prepare: -> super()
     save: (fn) -> super fn, module
     del: (fn) -> super fn, module
 
@@ -73,7 +75,7 @@ exports.getPage = (user, p, fn) ->
         fn entries, Math.ceil t/n
     
     x = (p - 1) * n
-    query = module.r.filter(user: user).orderBy(d).skip(x)
+    query = module.r.filter({user: user, processed: true}).orderBy(d).skip(x)
     query.limit(n).run module.c, (err, cur) ->
         test = -> cur.hasNext()
         processEntry = (done) ->
@@ -89,6 +91,36 @@ exports.getPage = (user, p, fn) ->
         
         async.whilst test, processEntry, finish
 
+# Get the new emails for a user.
+#
+# @param string    user         User Id.
+# @param callback  fn([]Email)  10 unread and unprocessed emails.
+exports.getNew = (user, fn) ->
+    entries = []
+    finish = -> fn entries
+    
+    filter =
+        user: user
+        read: false
+        processed: false
+    
+    query = module.r.filter(filter).orderBy(module.d.asc('date')).limit(10)
+    query.run module.c, (err, cur) ->
+        test = -> cur.hasNext()
+        processEntry = (done) ->
+            cur.next (err, entry) ->
+                id = entry.id
+                delete entry.id
+                
+                entry = exports.create id, entry
+                entry.humanize()
+                
+                entries.push entry
+                done()
+        
+        async.whilst test, processEntry, finish
+
+
 # Get all the emails in an array.
 #
 # @param string user User ID.
@@ -98,6 +130,7 @@ exports.getAll = (user, ids, fn) ->
     entries = []
     finish = -> fn entries
     
+    ids.push {index: 'id'}
     module.r.getAll(ids...).filter(user: user).run module.c, (err, cur) ->
         test = -> cur.hasNext()
         processEntry = (done) ->
@@ -112,3 +145,24 @@ exports.getAll = (user, ids, fn) ->
                 done()
         
         async.whilst test, processEntry, finish
+
+# Perform a mass update of emails.
+
+
+# Efficiently updates several emails.
+#
+# @param array     emails              The indexes to insert.
+# @param callback  fn(object, object)  See BaseModel::save()
+exports.massUpdate = (emails, fn) ->
+    entries = []
+    
+    for email in emails
+        [err, entry] = email.prepare()
+        if err? then continue
+        
+        entry.id = email.id
+        entries.push entry
+    
+    module.r.insert(entries, {upsert: true}).run module.c, (err, out) ->
+        fn err, out
+        return false

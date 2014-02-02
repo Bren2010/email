@@ -67,6 +67,25 @@ class exports.BaseModel
                 @_new = true
                 fn false
     
+    # Prepares the model for a save.
+    #
+    # @return  string  An error string.
+    # @return  object  The raw data to push to the database.
+    prepare: ->
+        # Data should be raw.
+        @dehumanize()
+        
+        # Error check content.
+        try @validate()
+        catch e then return [e.message, null]
+        
+        # Generate entry.
+        entry = {}
+        put = (k) => if k[0] isnt '_' and k isnt 'id' then entry[k] = this[k]
+        put key for key in Object.keys this
+        
+        [null, entry]
+    
     # Saves the model's state to the database.
     #
     # @param callback  fn(object, object)  Called when content is saved 
@@ -74,23 +93,11 @@ class exports.BaseModel
     # @param object    context             The context to use.  (Should 
     #                                      contain DB methods).
     save: (fn, context) ->
-        # Data should be raw.
-        @dehumanize()
-        
-        # Error check content.
-        try
-            @validate()
-        catch e
+        [err, entry] = @prepare()
+        if err?
             errors = {}
-            errors[e.message] = true
+            errors[err] = true
             return fn null, errors
-        
-        # Generate entry.
-        entry = {}
-        put = (k) =>
-            if k[0] isnt '_' and k isnt 'id' then entry[k] = this[k]
-        
-        put key for key in Object.keys(this)
         
         # Add to database.
         query = context.r
@@ -103,7 +110,7 @@ class exports.BaseModel
         
         query.run context.c, (err, out) =>
             if out.generated_keys?.length is 1 then @id = out.generated_keys[0]
-            fn out, null
+            fn err, out
         
         entry
     
@@ -115,5 +122,5 @@ class exports.BaseModel
     #                              DB methods).
     del: (fn, context) ->
         context.r.get(@id).delete().run context.c, (err, out) ->
-            fn out
+            fn err, out
             return false

@@ -52,8 +52,6 @@ app.post '/user/register', (req, res) ->
         pubKey: req.param 'pubKey'
         privKey: req.param 'privKey'
     
-    console.log entry
-    
     # Called to route the user once all of the work is done.
     fn = (err, user) ->
         if err isnt null
@@ -77,7 +75,7 @@ app.post '/user/register', (req, res) ->
         # Set extra data.
         entry.setPassword req.param('pass'), -> # Hashes it.
             # Save the user to the db or return errors.
-            entry.save (out, err) -> fn err, entry
+            entry.save (err, out) -> fn err, entry
 
 app.get '/user/settings', (req, res) ->
     if not req.session.authed then return res.redirect '/'
@@ -94,7 +92,7 @@ app.post '/user/settings', (req, res) ->
     user.privKey = req.param 'privKey'
     user.setPassword req.param('pass'), ->
         # Save and reload to get the latest user object.
-        user.save (out, err) ->
+        user.save (err, out) ->
             view.err = err
             
             user = module.exports.model.create session.uid, null

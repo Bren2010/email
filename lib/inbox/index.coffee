@@ -157,10 +157,42 @@ module.exports.handler = (socket) ->
             console.error 'socket:pubKey:  ', e.toString()
             socket.emit 'pubKey', false
     
+    # Fetch new emails.
+    socket.on 'fetch', ->
+        module.exports.model.getNew userId, (emails) ->
+            socket.emit 'fetch', emails
+    
+    # Mark an email as read.
+    socket.on 'read', (id) ->
+        email = module.exports.model.create id, null
+        email.load (ok) ->
+            if not ok or email.user isnt userId then return
+            email.read = true
+            email.save (err, out) ->
+    
+    # Update the old, unprocessed emails, with the new processed ones.
+    socket.on 'process', (emails) ->
+        console.log emails
+        ids = []
+        ids.push email.id for email in emails when email.id?
+        
+        module.exports.model.getAll userId, ids, (emails2) ->
+            for i, email of emails2
+                for cand in emails when cand.id is email.id
+                    emails2[i].from = cand.from
+                    emails2[i].subject = cand.subject
+                    emails2[i].body = cand.body
+                    emails2[i].pubKey = cand.pubKey
+            
+            module.exports.model.massUpdate emails2, (err, out) ->
+                socket.emit 'process'
+    
     # Attempt to merge indexes.  This is all translations and adaptations from
     # the caesar library.
-    socket.on 'index', (newId, domain, reps, index, privKey) ->
-        u = user.create userId
+    socket.on 'index', (newIds, domain, reps, index, privKey) ->
+        if not authed then return
+        
+        u = user.create userId, null
         u.load (ok) ->
             checkIndex = (archive, reps, index) ->
                 for dn, docs of archive when -1 is reps.indexOf dn
@@ -175,19 +207,21 @@ module.exports.handler = (socket) ->
                 altered = true
             
             if not altered
-                email = module.exports.model.create newId, null
-                email.load (ok) ->
-                    if not ok then return console.error 'socket:index:'
+                module.exports.model.getAll userId, newIds, (emails) ->
+                    # 1.  Update user's keystore and metadata.
+                    console.log domain
+                    console.log index.docs
+                    console.log reps
                     
-                    # 1.  Update user's keystore and meta data.
                     u.privKey = privKey
                     u.search[domain] = index.docs
                     delete u.search[dn] for dn in reps
                     u._new = true # Forces deletions to hold.
-                    email.read = true # 2.  Mark email as read.
                     
+                    # 2.  Mark email as processed.
+                    emails[i].processed = true for i of emails
                     
-                    models = [u, email]
+                    indexes = []
                     for key, doc of index.index
                         entry =
                             user: userId
@@ -195,16 +229,23 @@ module.exports.handler = (socket) ->
                             key: key
                             doc: doc
                         
-                        models.push search.create null, entry
+                        indexes.push search.create null, entry
                     
-                    getModels = (dn, done) =>
-                        search.getByDomain userId, dn, (indexes) =>
-                            models.push index for index in indexes
-                            done()
+                    fns = []
+                    fns.push u.save.bind u
                     
-                    async.each reps, getModels, =>
-                        save = (model, done) -> model.save (ok) -> done()
-                        async.each models, save, -> socket.emit 'done'
+                    # 3. Insert new indexes.
+                    # 4. Delete old indexes.
+                    update = (fn) -> module.exports.model.massUpdate emails, fn
+                    ins = (fn) -> search.massInsert indexes, fn
+                    del = (fn) -> search.massDeleteByDn userId, reps, fn
+                    
+                    fns.push update.bind this
+                    fns.push ins.bind this
+                    fns.push del.bind this
+                    
+                    run = (fn, done) -> fn (err, out) -> done()
+                    async.each fns, run, -> socket.emit 'done'
             else
                 module.exports.model.getAll userId, index.docs, (emails) ->
-                    socket.emit 'index', newId, reps, emails
+                    socket.emit 'index', newIds, reps, emails

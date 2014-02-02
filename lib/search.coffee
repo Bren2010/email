@@ -29,6 +29,7 @@ class Index extends BaseModel
     humanize: -> super []
     dehumanize: -> super []
     load: (fn) -> super 'index', fn, module
+    prepare: -> super()
     save: (fn) -> super fn, module
     del: (fn) -> super fn, module
 
@@ -41,25 +42,33 @@ class Index extends BaseModel
 # @return Index The index described.
 exports.create = (id, entry) -> new Index id, entry
 
-# Gets an array of indexes by their user and domain.
+# Efficiently inserts several index entries.
 #
-# @param string    user         The user's id.
-# @param string    domain       The domain.
-# @param callback  fn([]Index)  Called when the indexes are loaded.
-#
-# @return User The user described.
-exports.getByDomain = (user, domain, fn) ->
-    module.r.filter(user: user, domain: domain).run module.c, (err, cur) ->
-        out = []
-        test = -> cur.hasNext()
-        processEntry = (done) ->
-            cur.next (err, entry) ->
-                id = entry.id
-                delete entry.id
-                
-                entry = exports.create id, entry
-                entry.humanize()
-                out.push entry
-                done()
+# @param array     indexes             The indexes to insert.
+# @param callback  fn(object, object)  See BaseModel::save()
+exports.massInsert = (indexes, fn) ->
+    entries = []
+    
+    for index in indexes
+        [err, entry] = index.prepare()
+        if err? then continue
         
-        async.whilst test, processEntry, -> fn out
+        entries.push entry
+    
+    module.r.insert(entries).run module.c, (err, out) ->
+        fn err, out
+        return false
+
+# Efficiently deletes all indexes under a list of domains.
+#
+# @param string    user                The user's id.
+# @param array     dns                 Domains to delete.
+# @param callback  fn(object, object)  See BaseModel::del()
+exports.massDeleteByDn = (user, dns, fn) ->
+    if dns.length is 0 then return fn null, null
+    dns.push {index: 'domain'}
+    
+    query = module.r.getAll dns...
+    query.filter({user: user}).delete().run module.c, (err, out) ->
+        fn err, out
+        return false

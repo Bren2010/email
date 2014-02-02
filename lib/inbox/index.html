@@ -51,6 +51,7 @@
           <ul class="nav navbar-nav">
             <li class="active"><a href="#">Home</a></li>
             <li><a href="#" data-toggle="modal" data-target="#compose">Compose</a></li>
+            <li><a href="#" onclick="return window.fetch();">Check</a></li>
             <li>
               <form class="navbar-form">
                 <div class="form-group">
@@ -68,10 +69,10 @@
     </div>
 
     <div class="container">
-        <center><img id="loading" src="/loading.gif" style="padding-top: 5%" /></center>
+        <center><img id="loading" src="/loading.gif" style="padding-top: 5%;display: none;" /></center>
         
         <div id="error" class="alert alert-warning" style="display: none"><strong>Woops!</strong>  You don't have any mail.</div>
-        <table id="emails" class="table table-striped table-hover" style="display: none">
+        <table id="emails" class="table table-striped table-hover" style="display: none;">
             <thead>
                 <tr>
                     <th width="20%">From</th>

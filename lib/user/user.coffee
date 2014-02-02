@@ -58,6 +58,7 @@ class User extends BaseModel
     dehumanize: -> super ['password']
     
     load: (fn) -> super 'user', fn, module
+    prepare: -> super()
     save: (fn) -> super fn, module
     del: (fn) -> super fn, module
 
