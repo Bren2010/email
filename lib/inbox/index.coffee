@@ -172,7 +172,6 @@ module.exports.handler = (socket) ->
     
     # Update the old, unprocessed emails, with the new processed ones.
     socket.on 'process', (emails) ->
-        console.log emails
         ids = []
         ids.push email.id for email in emails when email.id?
         
@@ -209,10 +208,6 @@ module.exports.handler = (socket) ->
             if not altered
                 module.exports.model.getAll userId, newIds, (emails) ->
                     # 1.  Update user's keystore and metadata.
-                    console.log domain
-                    console.log index.docs
-                    console.log reps
-                    
                     u.privKey = privKey
                     u.search[domain] = index.docs
                     delete u.search[dn] for dn in reps

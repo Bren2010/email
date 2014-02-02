@@ -49,7 +49,7 @@
     __extends(Email, _super);
 
     function Email(id, email, _key) {
-      var _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
+      var _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8;
       this.id = id;
       this._key = _key;
       this.user = (_ref = email != null ? email.user : void 0) != null ? _ref : null;
@@ -60,6 +60,7 @@
       this.signature = (_ref5 = email != null ? email.signature : void 0) != null ? _ref5 : null;
       this.pubKey = (_ref6 = email != null ? email.pubKey : void 0) != null ? _ref6 : null;
       this.read = (_ref7 = email != null ? email.read : void 0) != null ? _ref7 : false;
+      this.processed = (_ref8 = email != null ? email.processed : void 0) != null ? _ref8 : false;
     }
 
     Email.prototype.sign = function(signingKey) {
@@ -164,29 +165,34 @@
   };
 
   mergeEmails = function(emails) {
-    var corpus, email, err, index, indexes, key, max, out, token, tokens, _i, _j, _len, _len1, _ref, _ref1;
+    var corpus, email, index, indexes, key, max, out, token, tokens, _i, _j, _len, _len1, _ref, _ref1;
     _ref = [0, []], max = _ref[0], indexes = _ref[1];
     for (_i = 0, _len = emails.length; _i < _len; _i++) {
       email = emails[_i];
       index = {};
-      email = new Email(email.id, email, window.privKey.elGamal);
-      email.humanize();
       try {
-        email.verify();
+        if (email.processed) {
+          email = new Email(email.id, email, window.dataKey);
+        } else {
+          email = new Email(email.id, email, window.privKey.elGamal);
+        }
+        email.humanize();
+        if (!email.processed) {
+          email.verify();
+        }
+        corpus = email.from + ' ' + email.subject + ' ' + email.body;
+        if (corpus.length > max) {
+          max = corpus.length;
+        }
+        tokens = sjcl.searchable.tokenize(corpus);
+        for (_j = 0, _len1 = tokens.length; _j < _len1; _j++) {
+          token = tokens[_j];
+          index[token] = email.id;
+        }
+        indexes.push(index);
       } catch (_error) {
-        err = _error;
         continue;
       }
-      corpus = email.from + ' ' + email.subject + ' ' + email.body;
-      if (corpus.length > max) {
-        max = corpus.length;
-      }
-      tokens = sjcl.searchable.tokenize(corpus);
-      for (_j = 0, _len1 = tokens.length; _j < _len1; _j++) {
-        token = tokens[_j];
-        index[token] = email.id;
-      }
-      indexes.push(index);
     }
     out = (_ref1 = sjcl.searchable).secureIndex.apply(_ref1, [window.searchKeys, max].concat(__slice.call(indexes)));
     key = {
@@ -198,7 +204,6 @@
       }
     };
     key = sjcl.encrypt(window.localStorage.pass, JSON.stringify(key));
-    alert(out.index.docs);
     return [out, key];
   };
 

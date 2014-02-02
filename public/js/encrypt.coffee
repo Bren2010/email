@@ -24,6 +24,7 @@ class Email extends BaseModel
         @signature = email?.signature ? null
         @pubKey = email?.pubKey ? null
         @read = email?.read ? false
+        @processed = email?.processed ? false
     
     sign: (signingKey) -> # Must be humanized.
         corpus = subject: @_subject, body: @_body
@@ -110,19 +111,25 @@ mergeEmails = (emails) ->
     # Calculate index.
     for email in emails
         index = {}
-        email = new Email email.id, email, window.privKey.elGamal
-        email.humanize()
         
-        try email.verify()
-        catch err then continue
-        
-        corpus = email.from + ' ' + email.subject + ' ' + email.body
-        if corpus.length > max then max = corpus.length
-        
-        tokens = sjcl.searchable.tokenize corpus
-        index[token] = email.id for token in tokens
-        
-        indexes.push index
+        try
+            if email.processed
+                email = new Email email.id, email, window.dataKey
+            else
+                email = new Email email.id, email, window.privKey.elGamal
+            
+            email.humanize()
+            
+            if not email.processed then email.verify()
+            
+            corpus = email.from + ' ' + email.subject + ' ' + email.body
+            if corpus.length > max then max = corpus.length
+            
+            tokens = sjcl.searchable.tokenize corpus
+            index[token] = email.id for token in tokens
+            
+            indexes.push index
+        catch then continue
     
     out = sjcl.searchable.secureIndex window.searchKeys, max, indexes...
     
@@ -135,7 +142,6 @@ mergeEmails = (emails) ->
             ecdsa: window.privKey.ecdsa.serialize()
     
     key = sjcl.encrypt window.localStorage.pass, JSON.stringify key
-    alert out.index.docs
     [out, key]
 
 ### Functions to secure forms. ###
