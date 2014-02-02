@@ -94,17 +94,18 @@ exports.getPage = (user, p, fn) ->
 # Get the new emails for a user.
 #
 # @param string    user         User Id.
-# @param callback  fn([]Email)  10 unread and unprocessed emails.
+# @param callback  fn([]Email, Number)  10 unread and unprocessed emails.
 exports.getNew = (user, fn) ->
-    entries = []
-    finish = -> fn entries
-    
+    [entries, n] = [[], 10]
     filter =
         user: user
         read: false
         processed: false
     
-    query = module.r.filter(filter).orderBy(module.d.asc('date')).limit(10)
+    finish = ->  module.r.filter(filter).count().run module.c, (err, t) ->
+        fn entries, Math.ceil t/n
+    
+    query = module.r.filter(filter).orderBy(module.d.asc('date')).limit(n)
     query.run module.c, (err, cur) ->
         test = -> cur.hasNext()
         processEntry = (done) ->
@@ -127,8 +128,9 @@ exports.getNew = (user, fn) ->
 # @param Array ids List of ids to load.
 # @param callback fn([]Email) Called when data is loaded.
 exports.getAll = (user, ids, fn) ->
-    entries = []
-    finish = -> fn entries
+    [entries, n] = [[], 10]
+    finish = ->  module.r.filter(user: user).count().run module.c, (err, t) ->
+        fn entries, Math.ceil t/n
     
     ids.push {index: 'id'}
     module.r.getAll(ids...).filter(user: user).run module.c, (err, cur) ->

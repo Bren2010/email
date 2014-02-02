@@ -381,6 +381,12 @@
     return false;
   };
 
+  window.page = function(i) {
+    $('#emails tbody').html('<tr></tr>');
+    $('#pagination').html('<li class="disabled"><a href="#">&laquo;</a></li>');
+    return window.socket.emit('page', i);
+  };
+
   if (window.privKey != null) {
     privKey = JSON.parse(sjcl.decrypt(window.localStorage.pass, window.privKey));
     window.searchKeys = privKey.search;
@@ -396,8 +402,8 @@
     });
   }
 
-  window.socket.on('page', function(emails) {
-    var loadEmail;
+  window.socket.on('page', function(p, emails, pages) {
+    var c, i, last, li, loadEmail;
     loadEmail = function(i) {
       var c, cb, email, err, tr;
       if (emails[i] == null) {
@@ -422,14 +428,23 @@
         err = _error;
         alert('Modified contents.');
       }
-      return $('#' + email.id).show('fast', function() {
+      return $('#' + email.id).show(100, function() {
         return loadEmail(i + 1);
       });
     };
     if (emails.length !== 0) {
-      return $('#emails').show('fast', function() {
+      $('#emails').show('fast', function() {
         return loadEmail(0);
       });
+      i = 1;
+      while (!(i > pages)) {
+        c = i === p ? 'disabled' : '';
+        li = '<li class="' + c + '"><a href="#" onclick="window.page(' + i + ')">' + i + '</a></li>';
+        $('#pagination li:last').after(li);
+        ++i;
+      }
+      last = '<li class="disabled"><a href="#">&raquo;</a></li>';
+      return $('#pagination li:last').after(last);
     } else {
       return flashError();
     }

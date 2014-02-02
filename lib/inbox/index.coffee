@@ -127,8 +127,8 @@ module.exports.handler = (socket) ->
     socket.on 'page', (p) ->
         if not authed then return
         
-        module.exports.model.getPage userId, p, (emails) ->
-            socket.emit 'page', emails
+        module.exports.model.getPage userId, p, (emails, pages) ->
+            socket.emit 'page', p, emails, pages
     
     # Get the public key of a foreign user.
     socket.on 'pubKey', (address) ->

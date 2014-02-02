@@ -309,6 +309,12 @@ window.fetch = ->
     
     false
 
+window.page = (i) ->
+    $('#emails tbody').html '<tr></tr>'
+    $('#pagination').html '<li class="disabled"><a href="#">&laquo;</a></li>'
+    
+    window.socket.emit 'page', i
+
 if window.privKey? # This is an inbox page.
     # Load private key into memory.
     privKey = JSON.parse sjcl.decrypt window.localStorage.pass, window.privKey
@@ -324,7 +330,7 @@ if window.privKey? # This is an inbox page.
     window.socket.emit 'login', window.tag
     window.socket.on 'authed', -> window.socket.emit 'page', 1
 
-window.socket.on 'page', (emails) ->
+window.socket.on 'page', (p, emails, pages) ->
     loadEmail = (i) ->
         if not emails[i]? then return
         
@@ -348,9 +354,23 @@ window.socket.on 'page', (emails) ->
             $('#date-' + email.id).text email.date
         catch err then alert 'Modified contents.'
         
-        $('#' + email.id).show 'fast', -> loadEmail i + 1
+        $('#' + email.id).show 100, -> loadEmail i + 1
     
-    if emails.length isnt 0 then $('#emails').show 'fast', -> loadEmail 0
+    if emails.length isnt 0
+        $('#emails').show 'fast', -> loadEmail 0
+        
+        i = 1
+        until i > pages
+            c = if i is p then 'disabled' else ''
+            li = '<li class="' + c + '"><a href="#" onclick="window.page(' + i +
+                ')">' + i + '</a></li>'
+            
+            $('#pagination li:last').after li
+            ++i
+        
+        last = '<li class="disabled"><a href="#">&raquo;</a></li>'
+        $('#pagination li:last').after last
+        
     else flashError()
 
 window.socket.on 'index', (newIds, reps, emails) ->
