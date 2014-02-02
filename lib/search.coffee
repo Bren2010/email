@@ -72,3 +72,14 @@ exports.massDeleteByDn = (user, dns, fn) ->
     query.filter({user: user}).delete().run module.c, (err, out) ->
         fn err, out
         return false
+
+# Efficiently deletes all indexes under a list of domains.
+#
+# @param string    user                The user's id.
+# @param array     email               Email id to select on.
+# @param callback  fn(object, object)  See BaseModel::del()
+exports.massDeleteByEmail = (user, email, fn) ->
+    query = module.r.filter({user: user, doc: email})
+    query.delete().run module.c, (err, out) ->
+        fn err, out
+        return false

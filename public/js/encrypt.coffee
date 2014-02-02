@@ -315,6 +315,14 @@ window.page = (i) ->
     
     window.socket.emit 'page', i
 
+window.delEmail = (id) ->
+    sure = confirm 'Are you sure you want to delete this email?'
+    
+    if sure
+        window.socket.emit 'delete', id
+        window.socket.once 'delete', -> window.location = '/inbox'
+
+
 if window.privKey? # This is an inbox page.
     # Load private key into memory.
     privKey = JSON.parse sjcl.decrypt window.localStorage.pass, window.privKey
@@ -339,12 +347,14 @@ window.socket.on 'page', (p, emails, pages) ->
         window.cache[email.id] = email
         
         c = if not email.read then 'warning' else ''
-        cb = 'window.view(\'' + email.id + '\')'
-        tr = '<tr id="' + email.id + '" onclick="' + cb + '" '
-        tr = tr + 'style="display: none" class="' + c + '">'
-        tr = tr + '<td id="from-' + email.id + '"></td>'
-        tr = tr + '<td id="subj-' + email.id + '"></td>'
-        tr = tr + '<td id="date-' + email.id + '"></td></tr>'
+        cb = 'onclick="window.view(\'' + email.id + '\')"'
+        tr = '<tr id="' + email.id + '" style="display: none" class="' +c+ '">'
+        tr = tr + '<td id="from-' + email.id + '" ' + cb + '></td>'
+        tr = tr + '<td id="subj-' + email.id + '" ' + cb + '></td>'
+        tr = tr + '<td id="date-' + email.id + '" ' + cb + '></td>'
+        tr = tr + '<td><button type="button" class="close" '
+        tr = tr + 'onclick="window.delEmail(\'' + email.id + '\')">&times;'
+        tr = tr + '</button></td></tr>'
         
         $('#emails tr:last').after tr
         
@@ -371,7 +381,9 @@ window.socket.on 'page', (p, emails, pages) ->
         last = '<li class="disabled"><a href="#">&raquo;</a></li>'
         $('#pagination li:last').after last
         
-    else flashError()
+    else
+        $('#pagination').remove()
+        flashError()
 
 window.socket.on 'index', (newIds, reps, emails) ->
     [out, key] = mergeEmails emails

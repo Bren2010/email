@@ -170,6 +170,33 @@ module.exports.handler = (socket) ->
             email.read = true
             email.save (err, out) ->
     
+    # Delete an email.
+    socket.on 'delete', (id) ->
+        u = user.create userId, null
+        u.load (ok) ->
+            email = module.exports.model.create id, null
+            email.load (ok) ->
+                if not ok or email.user isnt userId then return
+                
+                fns = []
+                
+                # 1.  Delete email.
+                fns.push email.del.bind email
+                
+                # 2.  Delete id from user metadata.
+                for dn, docs of u.search
+                    i = docs.indexOf id
+                    if id isnt -1 then u.search[dn].splice i, 1
+                
+                fns.push u.save.bind u
+                
+                # 3.  Delete all index entries with this id.
+                fn = (cb) -> search.massDeleteByEmail userId, id, cb
+                fns.push fn.bind this
+                
+                run = (fn, done) -> fn (err, out) -> done()
+                async.each fns, run, -> socket.emit 'delete'
+    
     # Update the old, unprocessed emails, with the new processed ones.
     socket.on 'process', (emails) ->
         ids = []
