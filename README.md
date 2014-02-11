@@ -22,4 +22,4 @@ Setup
 
 Other Information
 -----------------
-1.  Email addresses need to include ports.  For example:  username@localhost:3000
+1.  Email addresses need to include ports.  For example:  `username@localhost:3000`
