@@ -6,6 +6,7 @@ a wider range of capabilities.
 
 I think works pretty well.
 
+
 Setup
 -----
 1.  Install RethinkDB
@@ -18,3 +19,7 @@ Setup
 3.  Install modules with `npm install` (run in work directory)
 4.  Start with `npm start`
 
+
+Other Information
+-----------------
+1.  Email addresses need to include ports.  For example:  username@localhost:3000
