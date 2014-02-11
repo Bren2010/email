@@ -6,7 +6,7 @@ a wider range of capabilities.
 
 I think works pretty well.  It is certainly possible to build constructs out of this that are more complex than a keyword search.  Anti-spam filters, categorizing, etc.  On the server-side, of course, even though the server is never given an email in plaintext.
 
-tl;dr:  A webmail server can still do all of the cool things they do without knowing anything more about a user's emails than the user wants the server to know.
+**tl;dr:**  A webmail server can still do all of the cool things it does without knowing anything more about a user's data than the user wants the server to know.
 
 
 Setup
