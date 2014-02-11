@@ -4,7 +4,9 @@ Encrypted Email
 Prototype--not really intended to be used for real stuff.  I wanted to see if putting SSE (Searchable Symmetric Encryption) in a web browser was actually feasible, because if it was, it would give cryptographically blinded services 
 a wider range of capabilities.
 
-I think works pretty well.
+I think works pretty well.  It is certainly possible to build constructs out of this that are more complex than a keyword search.  Anti-spam filters, categorizing, etc.  On the server-side, of course, even though the server is never given an email in plaintext.
+
+tl;dr:  A webmail server can still do all of the cool things they do without knowing anything more about a user's emails than the user wants the server to know.
 
 
 Setup
