@@ -71,8 +71,10 @@ exports.create = (id, email) -> new Email id, email
 exports.getPage = (user, p, fn) ->
     [d, entries, t, n] = [module.d.desc('date'), [], 0, 10]
     
-    finish = -> module.r.filter(user: user).count().run module.c, (err, t) ->
-        fn entries, Math.ceil t/n
+    finish = ->
+        filter = user: user, processed: true
+        module.r.filter(filter).count().run module.c, (err, t) ->
+            fn entries, Math.ceil t/n
     
     x = (p - 1) * n
     query = module.r.filter({user: user, processed: true}).orderBy(d).skip(x)
@@ -129,8 +131,11 @@ exports.getNew = (user, fn) ->
 # @param callback fn([]Email) Called when data is loaded.
 exports.getAll = (user, ids, fn) ->
     [entries, n] = [[], 10]
-    finish = ->  module.r.filter(user: user).count().run module.c, (err, t) ->
-        fn entries, Math.ceil t/n
+    finish = ->
+        filter = user: user, processed: true
+        module.r.filter(filter).count().run module.c, (err, t) ->
+            console.log t
+            fn entries, Math.ceil t/n
     
     ids.push {index: 'id'}
     module.r.getAll(ids...).filter(user: user).run module.c, (err, cur) ->

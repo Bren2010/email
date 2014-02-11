@@ -33,9 +33,10 @@
             <li><a href="#" data-toggle="modal" data-target="#compose">Compose</a></li>
             <li><a href="#" onclick="return window.fetch();">Check</a></li>
             <li>
-              <form class="navbar-form">
+              <form class="navbar-form" method="post" action="/search" onsubmit="return window.search(this)">
                 <div class="form-group">
-                  <input type="text" placeholder="Search" class="form-control">
+                  <input type="text" name="search" placeholder="Search" class="form-control" size="30" id="query">
+                  <input type="hidden" name="_csrf" value="{{_csrf}}" />
                 </div>
               </form>
             </li>
@@ -51,7 +52,7 @@
     <div class="container">
         <center><img id="loading" src="/loading.gif" style="padding-top: 5%;display: none;" /></center>
         
-        <div id="error" class="alert alert-warning" style="display: none"><strong>Woops!</strong>  You don't have any mail.</div>
+        <div id="error" class="alert alert-warning" style="display: none"><strong>Woops!</strong>  We couldn't find anything.</div>
         <table id="emails" class="table table-striped table-hover" style="display: none;">
             <thead>
                 <tr>
@@ -68,7 +69,6 @@
         
         <center>
             <ul class="pagination" id="pagination">
-                <li class="disabled"><a href="#">&laquo;</a></li>
             </ul>
         </center>
     </div> <!-- /container -->
@@ -136,6 +136,9 @@
         window.tag = '{{{tag}}}';
         window.from = '{{user.username}}@{{domain}}';
         window.cache = {};
+        window.preloadedEmails = '{{{emails}}}';
+        window.pages = {{pages}};
+        window.query = '{{{query}}}';
     </script>
     
     <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>

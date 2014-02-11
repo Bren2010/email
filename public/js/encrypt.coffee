@@ -105,6 +105,18 @@ flashError = ->
 
 toggleLoading = -> $('#loading').toggle 'slow'
 
+serializeKey = ->
+    key =
+        search: window.searchKeys
+        data: window.dataKey
+        email:
+            elGamal: window.privKey.elGamal.serialize()
+            ecdsa: window.privKey.ecdsa.serialize()
+
+    key = sjcl.encrypt window.localStorage.pass, JSON.stringify key
+    
+    key
+
 mergeEmails = (emails) ->
     [max, indexes] = [0, []]
     
@@ -134,14 +146,7 @@ mergeEmails = (emails) ->
     out = sjcl.searchable.secureIndex window.searchKeys, max, indexes...
     
     # Re-encrypt keystore.
-    key =
-        search: window.searchKeys
-        data: window.dataKey
-        email:
-            elGamal: window.privKey.elGamal.serialize()
-            ecdsa: window.privKey.ecdsa.serialize()
-    
-    key = sjcl.encrypt window.localStorage.pass, JSON.stringify key
+    key = serializeKey()
     [out, key]
 
 ### Functions to secure forms. ###
@@ -226,6 +231,15 @@ window.compose = (form) ->
     catch e
         alert e
         false
+
+window.search = (form) ->
+    if form.search.value.length is 0 then return alert 'Please enter a query.'
+    
+    window.localStorage.query = form.search.value
+    tokens = sjcl.searchable.tokenize form.search.value
+    query = sjcl.searchable.createQuery window.searchKeys, tokens...
+    
+    form.search.value = JSON.stringify query
 
 window.view = (id) ->
     email = window.cache[id]
@@ -313,32 +327,21 @@ window.page = (i) ->
     $('#emails tbody').html '<tr></tr>'
     $('#pagination').html '<li class="disabled"><a href="#">&laquo;</a></li>'
     
-    window.socket.emit 'page', i
+    window.socket.emit 'page', i, window.query
 
 window.delEmail = (id) ->
     sure = confirm 'Are you sure you want to delete this email?'
     
     if sure
         window.socket.emit 'delete', id
-        window.socket.once 'delete', -> window.location = '/inbox'
+        window.socket.once 'delete', (minused, deleted) ->
+            window.searchKeys[dn][0]-- for dn in minused
+            delete window.searchKeys[dn] for dn in deleted
+            
+            window.socket.emit 'updateKey', serializeKey()
+            window.socket.once 'updateKey', -> window.location = '/inbox'
 
-
-if window.privKey? # This is an inbox page.
-    # Load private key into memory.
-    privKey = JSON.parse sjcl.decrypt window.localStorage.pass, window.privKey
-    window.searchKeys = privKey.search
-    window.dataKey = privKey.data
-    privKey = privKey.email
-    
-    privKey.elGamal = sjcl.ecc.deserialize privKey.elGamal
-    privKey.ecdsa = sjcl.ecc.deserialize privKey.ecdsa
-    window.privKey = privKey
-    
-    window.socket = io.connect 'http://localhost:3000'
-    window.socket.emit 'login', window.tag
-    window.socket.on 'authed', -> window.socket.emit 'page', 1
-
-window.socket.on 'page', (p, emails, pages) ->
+loadPage = (p, emails, pages) ->
     loadEmail = (i) ->
         if not emails[i]? then return
         
@@ -369,6 +372,13 @@ window.socket.on 'page', (p, emails, pages) ->
     if emails.length isnt 0
         $('#emails').show 'fast', -> loadEmail 0
         
+        if p isnt 1
+            html = '<li><a href="#" onclick="window.page(' + (p - 1) +
+                ')">&laquo;</a></li>'
+        else html = '<li class="disabled"><a href="#">&laquo;</a></li>'
+            
+        $('#pagination').html html
+        
         i = 1
         until i > pages
             c = if i is p then 'disabled' else ''
@@ -378,13 +388,46 @@ window.socket.on 'page', (p, emails, pages) ->
             $('#pagination li:last').after li
             ++i
         
-        last = '<li class="disabled"><a href="#">&raquo;</a></li>'
+        if p isnt pages
+            last = '<li><a href="#" onclick="window.page(' + (p + 1) +
+                ')">&raquo;</a></li>'
+        else last = '<li class="disabled"><a href="#">&raquo;</a></li>'
+        
         $('#pagination li:last').after last
         
     else
         $('#pagination').remove()
         flashError()
 
-window.socket.on 'index', (newIds, reps, emails) ->
-    [out, key] = mergeEmails emails
-    window.socket.emit 'index', newIds, out.newDomain, reps, out.index, key
+$(document).ready ->
+    if window.privKey? # This is an inbox page.
+        # Load private key into memory.
+        privKey = JSON.parse sjcl.decrypt window.localStorage.pass, window.privKey
+        window.searchKeys = privKey.search
+        window.dataKey = privKey.data
+        privKey = privKey.email
+        
+        privKey.elGamal = sjcl.ecc.deserialize privKey.elGamal
+        privKey.ecdsa = sjcl.ecc.deserialize privKey.ecdsa
+        window.privKey = privKey
+        
+        window.socket = io.connect 'http://localhost:3000'
+        window.socket.emit 'login', window.tag
+        window.socket.on 'authed', ->
+            emails = JSON.parse unescape window.preloadedEmails
+            pages = window.pages
+            
+            loadPage 1, emails, pages
+
+    if window.localStorage.query?
+        document.getElementById('query').value = window.localStorage.query
+        delete window.localStorage.query
+    
+    window.socket.on 'page', loadPage
+
+    window.socket.on 'index', (newIds, newDomain, reps, emails) ->
+        delete window.searchKeys[newDomain]
+        delete window.searchKeys[dn] for dn in reps
+        
+        [out, key] = mergeEmails emails
+        window.socket.emit 'index', newIds, out.newDomain, reps, out.index, key

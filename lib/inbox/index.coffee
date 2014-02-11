@@ -20,6 +20,13 @@ db.events.on 'start', ->
     module.exports.model.db db
     search.db db
 
+generateTag = (session, view) ->
+    tag = session.uid + '.' + Math.floor(Date.now() / 60000)
+    
+    mac = crypto.createHmac 'sha256', config.sessionSecret
+    mac.end tag
+    tag += '.' + mac.read().toString 'base64'
+
 app.get '/inbox', (req, res) ->
     if not req.session.authed then return res.redirect '/'
     
@@ -28,13 +35,13 @@ app.get '/inbox', (req, res) ->
     view.domain = config.domain
     
     # Generate a tag that can authenticate us on the stream.
-    view.tag = req.session.uid + '.' + Math.floor(Date.now() / 60000)
+    view.tag = generateTag req.session, view
     
-    mac = crypto.createHmac 'sha256', config.sessionSecret
-    mac.end view.tag
-    view.tag += '.' + mac.read().toString 'base64'
-    
-    res.render 'index'
+    module.exports.model.getPage view.user.id, 1, (emails, pages) ->
+        view.emails = escape JSON.stringify emails
+        view.pages = pages
+        
+        res.render 'index'
 
 app.post '/inbox/send', (req, res) ->
     if not req.session.authed then return res.redirect '/'
@@ -106,6 +113,33 @@ app.post '/inbox/send/:user', (req, res) ->
             if err? then console.error 'app:inbox/send/:user:  ', out, err
             if err? then res.send 'error' else res.send 'ok'
 
+app.post '/search', (req, res) ->
+    if not req.session.authed then return res.redirect '/'
+    
+    view = res.locals
+    view.pageTitle = 'Searching ' + view.user.username + '\'s Inbox...'
+    view.domain = config.domain
+    
+    # Generate a tag that can authenticate us on the stream.
+    view.tag = generateTag req.session, view
+    
+    try
+        query = req.param 'search'
+        if not query? then throw 'search'
+        
+        view.query = escape query
+        query = JSON.parse query
+        
+        search.query view.user.id, query, 1, (emails, pages) ->
+            view.emails = escape JSON.stringify emails
+            view.pages = pages
+            
+            res.render 'index'
+        
+    catch e
+        console.error 'app:search:  ', e
+        return res.send 'Missing or corrupt data.'
+
 module.exports.handler = (socket) ->
     [authed, userId] = [false, '']
     
@@ -124,11 +158,18 @@ module.exports.handler = (socket) ->
             socket.emit 'authed'
     
     # Get a page of emails.
-    socket.on 'page', (p) ->
+    socket.on 'page', (p, query) ->
         if not authed then return
         
-        module.exports.model.getPage userId, p, (emails, pages) ->
-            socket.emit 'page', p, emails, pages
+        try
+            if query.length isnt 0
+                query = JSON.parse unescape query
+                search.query userId, query, p, (emails, pages) ->
+                    socket.emit 'page', p, emails, pages
+            else
+                module.exports.model.getPage userId, p, (emails, pages) ->
+                    socket.emit 'page', p, emails, pages
+        catch e then console.error 'socket:page:  ', e
     
     # Get the public key of a foreign user.
     socket.on 'pubKey', (address) ->
@@ -184,9 +225,17 @@ module.exports.handler = (socket) ->
                 fns.push email.del.bind email
                 
                 # 2.  Delete id from user metadata.
+                [minused, deleted] = [[], []]
                 for dn, docs of u.search
                     i = docs.indexOf id
-                    if id isnt -1 then u.search[dn].splice i, 1
+                    if i isnt -1
+                        minused.push dn
+                        u.search[dn].splice i, 1
+                    
+                    if u.search[dn].length is 0
+                        u._new = true
+                        deleted.push dn
+                        delete u.search[dn]
                 
                 fns.push u.save.bind u
                 
@@ -195,7 +244,14 @@ module.exports.handler = (socket) ->
                 fns.push fn.bind this
                 
                 run = (fn, done) -> fn (err, out) -> done()
-                async.each fns, run, -> socket.emit 'delete'
+                async.each fns, run, -> socket.emit 'delete', minused, deleted
+    
+    # Update a user's key.
+    socket.on 'updateKey', (privKey) ->
+        u = user.create userId, null
+        u.load (ok) ->
+            u.privKey = privKey
+            u.save -> socket.emit 'updateKey'
     
     # Update the old, unprocessed emails, with the new processed ones.
     socket.on 'process', (emails) ->
@@ -270,4 +326,4 @@ module.exports.handler = (socket) ->
                     async.each fns, run, -> socket.emit 'done'
             else
                 module.exports.model.getAll userId, index.docs, (emails) ->
-                    socket.emit 'index', newIds, reps, emails
+                    socket.emit 'index', newIds, domain, reps, emails

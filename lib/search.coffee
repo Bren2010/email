@@ -2,6 +2,7 @@
 {check} = require 'validator'
 
 async = require 'async'
+inbox = require './inbox'
 
 # Prepares a database table for this model to use.
 #
@@ -58,6 +59,49 @@ exports.massInsert = (indexes, fn) ->
     module.r.insert(entries).run module.c, (err, out) ->
         fn err, out
         return false
+
+# Queries the indexes.
+#
+#
+#
+exports.query = (user, queries, p, fn) ->
+    [n, entries] = [10, {}]
+    finish = ->
+        cleanEntries = []
+        cleanEntries.push entry for id, entry of entries
+        
+        query = module.r.getAll(ids...).filter({user: user}).count()
+        query.run module.c, (err, t) ->
+            fn cleanEntries, Math.ceil t/n
+    
+    # Better database <=> Better queries
+    # RethinkDB is pretty hard and expensive to query like this.
+    # BigTable (or another multi-dimensional K/V store) would be cool to use.
+    ids = []
+    for query in queries
+        for dn, keys of query
+            for key in keys
+                ids.push key
+    
+    ids.push {index: 'key'}
+    
+    x = (p - 1) * n
+    query = module.r.getAll(ids...).filter({user: user}).skip(x).limit(n)
+    query.run module.c, (err, cur) ->
+        test = -> cur.hasNext()
+        processEntry = (done) ->
+            cur.next (err, entry) ->
+                if not entry? then return done()
+                if entries[entry.doc]? then return done()
+                entry = inbox.model.create entry.doc, null
+                entry.load (ok) ->
+                    entry.humanize()
+                    entries[entry.id] = entry
+                    
+                    done()
+        
+        async.whilst test, processEntry, finish
+
 
 # Efficiently deletes all indexes under a list of domains.
 #
